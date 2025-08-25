@@ -158,7 +158,8 @@ def instrument(enum_variable_uniq):
                 with open(os.path.join(root, file), 'r+', encoding="utf-8", errors='ignore') as f:
                     content = f.read()
                     for name in enum_variable_uniq:
-                        result = search_index("^(?: |\t)*?(?:\w+\.|\w+->)*?" + name+" ?= ?\w+?;", content)
+                        safe_name = re.escape(name)
+                        result = search_index("^(?: |\t)*?(?:\w+\.|\w+->)*?" + safe_name +" ?= ?\w+?;", content)
                         content = package_content(content, result, file, root)
                     if not debug:
                         f.seek(0)
