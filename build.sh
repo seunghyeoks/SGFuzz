@@ -10,3 +10,4 @@ wait
 rm -f libsfuzzer.a
 ar r libsfuzzer.a Fuzzer*.o
 rm -f Fuzzer*.o
+
