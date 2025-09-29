@@ -22,7 +22,7 @@ namespace fuzzer {
     return hits;
   }
 
-  uint64_t StateMachine::sum_hits() {
+  size_t StateMachine::sum_hits() {
     size_t res = hits;
     if (children.size())
       for (auto kv : children) res += kv.second->sum_hits();
