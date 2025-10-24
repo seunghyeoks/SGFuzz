@@ -107,7 +107,7 @@ def lookfor_enum_definition():
     enum_variable_uniq = set()
     for root, dirs, files in os.walk(path):
         for file in files:
-            if file.endswith(('.cpp', '.c', '.cc', '.h', '.hh', '.h.in')):
+            if file.endswith(('.cpp', '.c', '.cc', '.h', '.hh', '.h.in', '.hpp')):
                 with open(os.path.join(root, file), 'r', encoding="utf-8", errors='ignore') as f:
                     content = f.read()
                     result = search_content(r'(?s)(?:typedef)?\senum\s*?\w*\s*?{.*?}.*?;', content)
@@ -131,7 +131,7 @@ def lookfor_enum_definition():
 def lookfor_enum_usage(enum_definition, enum_usage, enum_variable_uniq):
     for root, dirs, files in os.walk(path):
         for file in files:
-            if file.endswith(('.cpp', '.c', '.cc', '.h', '.hh', '.h.in')):
+            if file.endswith(('.cpp', '.c', '.cc', '.h', '.hh', '.h.in', '.hpp')):
                 with open(os.path.join(root, file), 'r', encoding="utf-8", errors='ignore') as f:
                     content = f.read()
                     for enum_type in enum_definition:
@@ -154,7 +154,7 @@ def lookfor_enum_usage(enum_definition, enum_usage, enum_variable_uniq):
 def instrument(enum_variable_uniq):
     for root, dirs, files in os.walk(path):
         for file in files:
-            if file.endswith(('.cpp', '.c', '.cc', '.h', '.hh', '.h.in')):
+            if file.endswith(('.cpp', '.c', '.cc', '.h', '.hh', '.h.in', '.hpp')):
                 with open(os.path.join(root, file), 'r+', encoding="utf-8", errors='ignore') as f:
                     content = f.read()
                     for name in enum_variable_uniq:
