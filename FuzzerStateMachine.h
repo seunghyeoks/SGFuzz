@@ -1,6 +1,6 @@
 #include "FuzzerDefs.h"
 #include "robin_hood.h"
-
+#include <limits>
 
 namespace fuzzer {
 
