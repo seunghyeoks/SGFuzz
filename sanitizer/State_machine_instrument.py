@@ -99,6 +99,41 @@ def package_content(content, result, file, root):
         new_content = '#ifndef SFUZZ_INSTRUMENT\n#define SFUZZ_INSTRUMENT\n#ifdef __cplusplus\nextern "C" {\n#endif\nvoid __sfuzzer_instrument(unsigned int location, unsigned int state_value);\n__attribute__((weak)) void __sfuzzer_instrument(unsigned int location, unsigned int state_value){location=0;state_value=0;};\n#ifdef __cplusplus\n}\n#endif /* __cplusplus */\n#endif /* SFUZZ_INSTRUMENT */\n' + new_content
     return new_content
 
+def package_fprime_instrument(content, result, file, root, state_expr_template, table_id):
+    global instrument_loc
+    instrument_loc_start = instrument_loc
+    last_index = 0
+    new_content = ''
+    for item in result: # item is a match object
+        cur_range = item.span()
+        matched_string = content[cur_range[0]:cur_range[1]]
+        
+        index_var = item.group(1)
+        value_str = item.group(2)
+        value = 1 if value_str == 'true' else 0
+
+        state_value = state_expr_template.format(index_var=index_var, value=value, table_id=table_id)
+
+        if debug:
+            print("--------Instrument FPrime--------------")
+            print(file)
+            print(matched_string)
+            print("State value expression:", state_value)
+
+        new_content += content[last_index:cur_range[0]]
+        new_content += '{__sfuzzer_instrument(' + str(instrument_loc) + ', ' + state_value + ');'
+        new_content += matched_string
+        new_content += '}'
+        instrument_loc += 1
+        last_index = cur_range[1]
+    new_content += content[last_index:]
+    if instrument_loc > instrument_loc_start:
+        print(os.path.join(root, file) + " is instrumented for FPrime" + " with " + str(instrument_loc - instrument_loc_start) + " locations")
+        # Check if header is already there
+        if '#ifndef SFUZZ_INSTRUMENT' not in new_content and '#ifndef SFUZZ_INSTRUMENT' not in content:
+             new_content = '#ifndef SFUZZ_INSTRUMENT\n#define SFUZZ_INSTRUMENT\n#ifdef __cplusplus\nextern "C" {\n#endif\nvoid __sfuzzer_instrument(unsigned int location, unsigned int state_value);\n__attribute__((weak)) void __sfuzzer_instrument(unsigned int location, unsigned int state_value){location=0;state_value=0;};\n#ifdef __cplusplus\n}\n#endif /* __cplusplus */\n#endif /* SFUZZ_INSTRUMENT */\n' + new_content
+    return new_content
+
 # Step 1: get the enum definition
 def lookfor_enum_definition():
     enum_definition = set()
@@ -167,6 +202,38 @@ def instrument(enum_variable_uniq):
                         f.truncate()
                       
 
+def instrument_fprime_cmddispatcher():
+    global path
+    # We are targeting a specific file.
+    filepath = os.path.join(path, "fprime/Svc/CmdDispatcher/fuzz/CommandDispatcherImpl.cpp")
+
+    if not os.path.exists(filepath):
+        print("FPrime CmdDispatcher file not found at:", filepath)
+        return
+        
+    with open(filepath, 'r+', encoding="utf-8", errors='ignore') as f:
+        content = f.read()
+
+        # state format: (table_id << 24) | (index << 1) | value
+        state_expr = "(({table_id} << 24) | (({index_var}) << 1) | {value})"
+
+        # Instrument m_entryTable
+        # this->m_entryTable[slot].used = true;
+        regex_entry_table = r"this->m_entryTable\[(\w+)\]\.used = (true|false);"
+        result = search_index(regex_entry_table, content)
+        content = package_fprime_instrument(content, result, os.path.basename(filepath), os.path.dirname(filepath), state_expr, 0)
+        
+        # Instrument m_sequenceTracker
+        # this->m_sequenceTracker[...].used = ...;
+        regex_seq_tracker = r"this->m_sequenceTracker\[(\w+)\]\.used = (true|false);"
+        result = search_index(regex_seq_tracker, content)
+        content = package_fprime_instrument(content, result, os.path.basename(filepath), os.path.dirname(filepath), state_expr, 1)
+
+        if not debug:
+            f.seek(0)
+            f.write(content)
+            f.truncate()
+
 if __name__ == '__main__':
     if debug:
         path = "/home/jinsheng/OCG/source/gst-plugins-base"
@@ -174,12 +241,17 @@ if __name__ == '__main__':
         blocked_variables_enabled = False
         instrument_loc = 23
     else:
+        fprime_mode = False
+        if '--fprime' in sys.argv:
+            fprime_mode = True
+            sys.argv.remove('--fprime')
+
         if len(sys.argv) > 1:
             path = sys.argv[1]
         else:
             print("Error: Please input the path of the source code.")
             print("Usage:")
-            print("    python3 State_machine_instrument.py path [-b blocked_variable_file start_index]")
+            print("    python3 State_machine_instrument.py path [--fprime] [-b blocked_variable_file start_index]")
             exit(0)
         if len(sys.argv) > 3 and sys.argv[2] == '-b':
             blocked_variables_file = sys.argv[3]
@@ -187,11 +259,15 @@ if __name__ == '__main__':
         if len(sys.argv) > 4:
             instrument_loc = int(sys.argv[4])
 
-    enum_definition, enum_usage, enum_variable_uniq = lookfor_enum_definition()
-    enum_usage, enum_variable_uniq = lookfor_enum_usage(enum_definition, enum_usage, enum_variable_uniq)
-    if blocked_variables_enabled:
-        enum_variable_uniq = filter_file(blocked_variables_file, enum_variable_uniq)
-    instrument(enum_variable_uniq)
+    if fprime_mode:
+        instrument_fprime_cmddispatcher()
+    else:
+        enum_definition, enum_usage, enum_variable_uniq = lookfor_enum_definition()
+        enum_usage, enum_variable_uniq = lookfor_enum_usage(enum_definition, enum_usage, enum_variable_uniq)
+        if blocked_variables_enabled:
+            enum_variable_uniq = filter_file(blocked_variables_file, enum_variable_uniq)
+        instrument(enum_variable_uniq)
+        
     if debug:
         print("--------------Final states----------------")
         print(enum_variable_uniq)
