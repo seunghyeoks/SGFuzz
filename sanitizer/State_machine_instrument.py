@@ -121,9 +121,8 @@ def package_fprime_instrument(content, result, file, root, state_expr_template, 
             print("State value expression:", state_value)
 
         new_content += content[last_index:cur_range[0]]
-        new_content += '{__sfuzzer_instrument(' + str(instrument_loc) + ', ' + state_value + ');'
         new_content += matched_string
-        new_content += '}'
+        new_content += '\n\t\t__sfuzzer_instrument(' + str(instrument_loc) + ', ' + state_value + ');'
         instrument_loc += 1
         last_index = cur_range[1]
     new_content += content[last_index:]
